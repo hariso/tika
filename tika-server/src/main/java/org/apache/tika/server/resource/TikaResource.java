@@ -405,6 +405,7 @@ public class TikaResource {
 
                 BodyContentHandler body = new BodyContentHandler(new RichTextContentHandler(writer));
 
+                // try-with-resources is closing a stream which has already been closed?
                 try (InputStream inputStream = is) {
                     parse(parser, LOG, info.getPath(), inputStream, body, metadata, context);
                 }

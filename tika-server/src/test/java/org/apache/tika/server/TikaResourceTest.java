@@ -17,15 +17,6 @@
 
 package org.apache.tika.server;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
-import javax.ws.rs.core.Response;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
-
 import org.apache.cxf.jaxrs.JAXRSServerFactoryBean;
 import org.apache.cxf.jaxrs.client.WebClient;
 import org.apache.cxf.jaxrs.ext.multipart.Attachment;
@@ -35,10 +26,21 @@ import org.apache.tika.parser.ocr.TesseractOCRParser;
 import org.apache.tika.server.resource.TikaResource;
 import org.junit.Test;
 
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.ws.rs.core.Response;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 public class TikaResourceTest extends CXFTestBase {
     public static final String TEST_DOC = "test.doc";
     public static final String TEST_PASSWORD_PROTECTED = "password.xls";
     private static final String TEST_RECURSIVE_DOC = "test_recursive_embedded.docx";
+    private static final String STREAM_CLOSED_FAULT = "java.io.IOException: Stream Closed";
 
     private static final String TIKA_PATH = "/tika";
     private static final int UNPROCESSEABLE = 422;
@@ -86,6 +88,57 @@ public class TikaResourceTest extends CXFTestBase {
                 .getEntity());
         assertTrue(responseMsg.contains("Title : Test Indexation Html"));
         assertFalse(responseMsg.contains("Indexation du fichier"));
+    }
+
+    @Test
+    public void testExtractText_AcceptXml() throws Exception {
+        final String fileName = "haris.docx";
+
+        ClassLoader.getSystemResourceAsStream(fileName);
+
+        Attachment attachmentPart = new Attachment(
+            "my-docx-file",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ClassLoader.getSystemResourceAsStream(fileName)
+        );
+
+        Response response = WebClient.create(endPoint + TIKA_PATH + "/form")
+            .type("multipart/form-data")
+            .accept("text/xml")
+            .post(attachmentPart);
+
+        String responseMsg = getStringFromInputStream((InputStream) response.getEntity());
+        assertContains("Summarise your key responsibilities, leadership and biggest accomplishments.", responseMsg);
+        assertContains("<meta name=\"X-TIKA:digest:MD5\" content=\"97ee8fff7189581b466098e889e76eb8\"/>", responseMsg);
+        assertNotFound(
+            STREAM_CLOSED_FAULT,
+            responseMsg
+        );
+    }
+
+    @Test
+    public void testExtractText_AcceptPlainText() throws Exception {
+        final String fileName = "haris.docx";
+
+        ClassLoader.getSystemResourceAsStream(fileName);
+
+        Attachment attachmentPart = new Attachment(
+            "my-docx-file",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ClassLoader.getSystemResourceAsStream(fileName)
+        );
+
+        Response response = WebClient.create(endPoint + TIKA_PATH + "/form")
+            .type("multipart/form-data")
+            .accept("text/plain")
+            .post(attachmentPart);
+
+        String responseMsg = getStringFromInputStream((InputStream) response.getEntity());
+        assertTrue(responseMsg.contains("Summarise your key responsibilities, leadership and biggest accomplishments."));
+        assertNotFound(
+            STREAM_CLOSED_FAULT,
+            responseMsg
+        );
     }
 
     @Test
